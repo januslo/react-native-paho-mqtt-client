@@ -1,0 +1,10 @@
+node_modules/
+.idea/
+.idea/*.xml
+
+
+.idea/jsLibraryMappings.xml
+
+.idea/uiDesigner.xml
+
+.idea/vcs.xml

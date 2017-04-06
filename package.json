@@ -1,0 +1,28 @@
+{
+  "name": "react-native-paho-mqtt-client",
+  "version": "0.1.0",
+  "description": "Paho mqtt support for React Native.",
+  "author": "Janus J K Lu <januslo6211@gmail.com>",
+  "contributors": [],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/januslo/react-native-paho-mqtt-client"
+  },
+  "bugs": {
+    "url": "https://github.com/januslo/react-native-paho-mqtt-client/issues"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "react-native",
+    "paho",
+    "mqtt"
+  ],
+  "license": "",
+  "private": false,
+  "peerDependencies": {
+    "react-native": "^0.42.0"
+  }
+}
