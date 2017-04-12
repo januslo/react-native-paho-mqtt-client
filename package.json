@@ -1,6 +1,6 @@
 {
   "name": "react-native-paho-mqtt-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Paho mqtt support for React Native.",
   "author": "Janus J K Lu <januslo6211@gmail.com>",
   "contributors": [],

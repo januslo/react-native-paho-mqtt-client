@@ -7,6 +7,8 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 
 
@@ -33,7 +35,7 @@ public class MQTTClientModule extends ReactContextBaseJavaModule {
     public static final String KEY_ALIVE_INTERVAL = "keyAliveInterval";
     public static final String EVENT_ERROR="mqttClientError";
     public static final String EVENT_MESSAGE_ARRIVED="mqttClientMessageArrived";
-
+    private static Map<String, MqttClient> clients=new HashMap<String, MqttClient>();
 
     @Override
     public String getName() {
@@ -66,77 +68,89 @@ public class MQTTClientModule extends ReactContextBaseJavaModule {
         int keepAliveInterval = options.hasKey(KEY_ALIVE_INTERVAL)?options.getInt(KEY_ALIVE_INTERVAL):MqttConnectOptions.KEEP_ALIVE_INTERVAL_DEFAULT;
         ReadableMap will = options.hasKey(WILL) ? options.getMap(WILL) : null;
 
-
         MqttClient client = null;
-        try {
-            client = new MqttClient(serverURI, clientId,new MemoryPersistence());
-            MqttConnectOptions opts = new MqttConnectOptions();
-            opts.setCleanSession(clearSession);
-            if (isNotEmpty(password)) {
-                opts.setPassword(password.toCharArray());
-            }
-            if (isNotEmpty(username)) {
-                opts.setUserName(username);
-            }
-            if (timeout >= 0) {// zero is the default value in this plugin.
-                opts.setConnectionTimeout(timeout);
-            }
-            if (version >= 0) {
-                opts.setMqttVersion(version);
-            }
-            if (will != null) {
-                String will_topic = will.hasKey(TOPIC)? will.getString(TOPIC):STRING_EMPTY;
-                String payload = will.hasKey(PAYLOAD)?will.getString(PAYLOAD):STRING_EMPTY;
-                int will_qos = will.hasKey(QOS)?will.getInt(QOS):INT_ZERO;
-                boolean retained = will.hasKey(RETAINED)?will.getBoolean(RETAINED):false;
-                opts.setWill(will_topic,payload.getBytes(),will_qos,retained);
-            }
-
-            opts.setKeepAliveInterval(keepAliveInterval);
-            client.setCallback(new MqttCallback() {
-                @Override
-                public void connectionLost(Throwable cause) {
-                    WritableMap params = Arguments.createMap();
-                    params.putString("error","error connectionLost:"+cause.getMessage());
-                    sendEvent(getReactApplicationContext(),EVENT_ERROR,params);
+        if(clients.containsKey(clientId) && clients.get(clientId)!=null){
+            client = clients.get(clientId);
+        }
+        if(client==null || !client.isConnected()){
+            try {
+                client = new MqttClient(serverURI, clientId,new MemoryPersistence());
+                clients.put(clientId,client);
+                MqttConnectOptions opts = new MqttConnectOptions();
+                opts.setCleanSession(clearSession);
+                if (isNotEmpty(password)) {
+                    opts.setPassword(password.toCharArray());
+                }
+                if (isNotEmpty(username)) {
+                    opts.setUserName(username);
+                }
+                if (timeout >= 0) {// zero is the default value in this plugin.
+                    opts.setConnectionTimeout(timeout);
+                }
+                if (version >= 0) {
+                    opts.setMqttVersion(version);
+                }
+                if (will != null) {
+                    String will_topic = will.hasKey(TOPIC)? will.getString(TOPIC):STRING_EMPTY;
+                    String payload = will.hasKey(PAYLOAD)?will.getString(PAYLOAD):STRING_EMPTY;
+                    int will_qos = will.hasKey(QOS)?will.getInt(QOS):INT_ZERO;
+                    boolean retained = will.hasKey(RETAINED)?will.getBoolean(RETAINED):false;
+                    opts.setWill(will_topic,payload.getBytes(),will_qos,retained);
                 }
 
-                @Override
-                public void messageArrived(String topic, MqttMessage message) throws Exception {
-                    WritableMap params = Arguments.createMap();
-                    params.putString("topic",topic);
-                    params.putString("payload",new String(message.getPayload(), Charset.forName("UTF-8")));
-                    params.putString("qos",String.valueOf(message.getQos()));
-                    sendEvent(getReactApplicationContext(),EVENT_MESSAGE_ARRIVED,params);
-                }
+                opts.setKeepAliveInterval(keepAliveInterval);
+                bindCallback(client);
+                client.connect(opts);
+                client.subscribe(topic, qos);
 
-                @Override
-                public void deliveryComplete(IMqttDeliveryToken token) {
-                    // do nothing...
-                }
-            });
-            client.connect(opts);
-            client.subscribe(topic, qos);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            WritableMap params = Arguments.createMap();
-            params.putString("error",e.getMessage());
-            sendEvent(getReactApplicationContext(),EVENT_ERROR,params);
-        }finally{
-            if(client!=null){
-                try {
-                    client.close();
-                }catch (Throwable t){
-                    //ignore.
+            } catch (Exception e) {
+                e.printStackTrace();
+                WritableMap params = Arguments.createMap();
+                params.putString("error",e.getMessage());
+                sendEvent(getReactApplicationContext(),EVENT_ERROR,params);
+            }finally{
+                if(client!=null){
+                    try {
+                        client.close();
+                    }catch (Throwable t){
+                        //ignore.
+                    }
                 }
             }
+         }else{
+            // renew callback application context.
+            bindCallback(client);
         }
 
     }
 
+    private void bindCallback(MqttClient client) {
+        client.setCallback(new MqttCallback() {
+            @Override
+            public void connectionLost(Throwable cause) {
+                WritableMap params = Arguments.createMap();
+                params.putString("error","error connectionLost:"+cause.getMessage());
+                sendEvent(getReactApplicationContext(),EVENT_ERROR,params);
+            }
+
+            @Override
+            public void messageArrived(String topic, MqttMessage message) throws Exception {
+                WritableMap params = Arguments.createMap();
+                params.putString("topic",topic);
+                params.putString("payload",new String(message.getPayload(), Charset.forName("UTF-8")));
+                params.putString("qos",String.valueOf(message.getQos()));
+                sendEvent(getReactApplicationContext(),EVENT_MESSAGE_ARRIVED,params);
+            }
+
+            @Override
+            public void deliveryComplete(IMqttDeliveryToken token) {
+                // do nothing...
+            }
+        });
+    }
+
     private boolean isNotEmpty(String arg) {
-        return arg != null || arg.length() > 0;
+        return arg != null && arg.length() > 0;
     }
     private void sendEvent(ReactContext reactContext,
                            String eventName,
